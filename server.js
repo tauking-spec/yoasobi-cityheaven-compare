@@ -64,6 +64,14 @@ function absolutize(url, base) {
   return new URL(url, base).toString();
 }
 
+function uniqueValues(values) {
+  return [...new Set(values.map((value) => cleanText(value)).filter(Boolean))];
+}
+
+function linkTexts(html = "") {
+  return uniqueValues([...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].map((match) => match[1]));
+}
+
 async function fetchText(url, options = {}) {
   const cached = cache.get(url);
   if (cached && Date.now() - cached.time < TTL_MS) return cached.text;
@@ -208,6 +216,14 @@ function parseCityShopPage(html, shop) {
   const reviewCount = Number((html.match(/口コミ\s*:\s*([\d,]+)\s*件/i)?.[1] || "").replace(/,/g, "")) || 0;
   const updateTime = cleanText(html.match(/<p class="time_update">([\s\S]*?)<\/p>/i)?.[1]);
   const catchText = cleanText(html.match(/<p class="shop_catch"[\s\S]*?<\/p>/i)?.[0]);
+  const genreLine = cleanText(html.match(/<h1[\s\S]*?<\/h1>\s*([^<]*\([^<]*\))/i)?.[1]);
+  const genreMatch = genreLine.match(/^([^()]+)(?:\(([^/]*)\/([^)]*)\))?/);
+  const localInfo = {
+    business: cleanText(genreMatch?.[1]),
+    types: uniqueValues([genreMatch?.[2]]),
+    area: cleanText(genreMatch?.[3]),
+    badges: [],
+  };
   const cityGirls = [];
   const seen = new Set();
   const girlPattern = new RegExp(
@@ -225,7 +241,31 @@ function parseCityShopPage(html, shop) {
     });
     if (cityGirls.length >= 12) break;
   }
-  return { priceSummary, reviewCount, updateTime, catchText, girls: cityGirls };
+  return { priceSummary, reviewCount, updateTime, catchText, localInfo, girls: cityGirls };
+}
+
+function parseCityLocalInfo(block) {
+  const gyousyuBlock = block.match(/<p class="shop_title_gyousyu"[\s\S]*?<\/p>/i)?.[0] || "";
+  const business = cleanText(gyousyuBlock.match(/<span class="_gyousyu"[\s\S]*?<\/span>/i)?.[0]);
+  const typeBlock =
+    gyousyuBlock.match(/<span class="gyousyu_type"[\s\S]*?<span class="_small">/i)?.[0] ||
+    gyousyuBlock.match(/<span class="gyousyu_type"[\s\S]*?<\/span>/i)?.[0] ||
+    "";
+  const areaBlock = gyousyuBlock.match(/<span class="gyousyu_area"[\s\S]*?<\/span>/i)?.[0] || "";
+  const iconBlocks = [...block.matchAll(/<ul class="[^"]*\bbase_info\b[^"]*"[\s\S]*?<\/ul>/gi)].map((match) => match[0]);
+  const badges = uniqueValues([
+    ...iconBlocks.flatMap((iconBlock) => [...iconBlock.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].map((match) => match[1])),
+    ...[...block.matchAll(/<div class="special-icons"[\s\S]*?<\/div>/gi)].flatMap((match) => [
+      ...match[0].matchAll(/<img\b[^>]*alt="([^"]*)"/gi),
+    ].map((imageMatch) => imageMatch[1])),
+  ]);
+
+  return {
+    business,
+    types: linkTexts(typeBlock),
+    area: linkTexts(areaBlock)[0] || "",
+    badges,
+  };
 }
 
 function parseCityListEntry(html, shop) {
@@ -245,6 +285,7 @@ function parseCityListEntry(html, shop) {
   const reviewCount = Number((block.match(/口コミ\s*:\s*([\d,]+)\s*件/i)?.[1] || "").replace(/,/g, "")) || 0;
   const updateTime = cleanText(block.match(/<p class="time_update">([\s\S]*?)<\/p>/i)?.[1]);
   const catchText = cleanText(block.match(/<p class="shop_catch"[\s\S]*?<\/p>/i)?.[0]);
+  const localInfo = parseCityLocalInfo(block);
   const girls = [];
   const seen = new Set();
   const girlPattern = new RegExp(
@@ -263,7 +304,7 @@ function parseCityListEntry(html, shop) {
     if (girls.length >= 12) break;
   }
 
-  return { priceSummary, reviewCount, updateTime, catchText, girls };
+  return { priceSummary, reviewCount, updateTime, catchText, localInfo, girls };
 }
 
 async function loadYoasobiShops(pref, limit, category = "") {
@@ -307,6 +348,12 @@ async function enrichShop(shop) {
       reviewCount: 0,
       updateTime: "",
       catchText: "",
+      localInfo: {
+        business: "",
+        types: [],
+        area: "",
+        badges: [],
+      },
       girls: [],
     },
     yoasobiPrice,

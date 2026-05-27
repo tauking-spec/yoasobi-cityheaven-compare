@@ -18,6 +18,27 @@ const CATEGORY_LABELS = {
   "outcall escort service": "外送服务",
   "soapland service parlor": "泡泡浴",
 };
+const CITY_LABELS = {
+  デリヘル: "外送",
+  ソープ: "泡泡浴",
+  ヘルス: "风俗店",
+  "ファッションヘルス": "店铺型",
+  ホテヘル: "酒店派遣",
+  エステ: "按摩",
+  高級: "高级",
+  高級店: "高级",
+  激安: "激安",
+  格安: "低价",
+  学園系: "学园系",
+  イメクラ: "角色扮演",
+  フェチ系: "癖好系",
+  ネット予約: "可网络预约",
+  来店ポイント: "到店积分",
+  クーポン: "优惠券",
+  イベント開催中: "活动中",
+  コンパニオン募集: "技师招募",
+  スタッフ募集: "员工招募",
+};
 
 function text(value) {
   return value == null || value === "" ? "N/A" : String(value);
@@ -25,6 +46,10 @@ function text(value) {
 
 function categoryLabel(value = "") {
   return CATEGORY_LABELS[value] || value || "未分类";
+}
+
+function cityLabel(value = "") {
+  return CITY_LABELS[value] || value;
 }
 
 function escapeHtml(value = "") {
@@ -120,6 +145,19 @@ function renderGirls(girls = []) {
   `;
 }
 
+function renderCityLocalInfo(info = {}) {
+  const typeLabels = (info.types || []).map(cityLabel).filter(Boolean);
+  const primary = [cityLabel(info.business), ...typeLabels, info.area].filter(Boolean);
+  const badges = (info.badges || []).map(cityLabel).filter(Boolean).slice(0, 8);
+  if (!primary.length && !badges.length) return "";
+  return `
+    <div class="city-local-info">
+      ${primary.length ? `<p><span>本地类型</span>${primary.map((item) => `<strong>${escapeHtml(item)}</strong>`).join("")}</p>` : ""}
+      ${badges.length ? `<p><span>本地标签</span>${badges.map((item) => `<strong>${escapeHtml(item)}</strong>`).join("")}</p>` : ""}
+    </div>
+  `;
+}
+
 function shopMatches(shop, query, category) {
   if (category && shop.category !== category) return false;
   if (!query) return true;
@@ -197,6 +235,7 @@ function render() {
                 <p class="price-line">${escapeHtml(text(shop.city?.updateTime))}</p>
               </section>
             </div>
+            ${renderCityLocalInfo(shop.city?.localInfo)}
             ${renderGirls(shop.city?.girls?.length ? shop.city.girls : shop.girls)}
             <div class="links">
               <a href="${escapeHtml(shop.yoasobiUrl)}" target="_blank">国际站</a>

@@ -260,6 +260,39 @@ input {
   font-size: 13px;
 }
 
+.city-local-info {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  border: 1px solid #e1e8e5;
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 9px;
+}
+
+.city-local-info p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.city-local-info span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.city-local-info strong {
+  border: 1px solid #cfe1dc;
+  border-radius: 999px;
+  background: #f2faf7;
+  color: var(--accent-dark);
+  padding: 3px 7px;
+  font-weight: 700;
+}
+
 .girls {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
