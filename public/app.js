@@ -11,6 +11,7 @@ const loadMoreEl = document.querySelector("#load-more");
 let shops = [];
 let visibleCount = 10;
 const PAGE_SIZE = 10;
+const RENDER_API_ORIGIN = "https://yoasobi-cityheaven-compare.onrender.com";
 const CATEGORY_LABELS = {
   "erotic massage service parlor": "风俗店铺",
   "hotel escort service parlor": "酒店派遣",
@@ -32,6 +33,34 @@ function escapeHtml(value = "") {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function apiPath(path) {
+  if (location.hostname.endsWith("github.io")) return `${RENDER_API_ORIGIN}${path}`;
+  return path;
+}
+
+async function readJson(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const body = await response.text();
+    const hint = body.trim().startsWith("<")
+      ? "接口返回了网页内容，当前页面可能没有连接到 Node API"
+      : body.trim().slice(0, 120);
+    throw new Error(hint || response.statusText || "接口没有返回 JSON");
+  }
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || response.statusText);
+  return data;
+}
+
+async function fetchApiJson(path) {
+  const primary = apiPath(path);
+  let response = await fetch(primary);
+  if (!response.ok && !primary.startsWith(RENDER_API_ORIGIN) && path.startsWith("/api/")) {
+    response = await fetch(`${RENDER_API_ORIGIN}${path}`);
+  }
+  return readJson(response);
 }
 
 function renderSummary(list, visibleTotal) {
@@ -214,14 +243,13 @@ async function load() {
   try {
     const params = new URLSearchParams({ pref, limit });
     if (category) params.set("category", category);
-    let response = await fetch(`/api/shops?${params.toString()}`);
+    let response = await fetch(apiPath(`/api/shops?${params.toString()}`));
     let staticSnapshot = false;
     if (!response.ok && response.status === 404) {
       staticSnapshot = true;
       response = await fetch(`./data/shops-${encodeURIComponent(pref)}.json`);
     }
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || response.statusText);
+    const data = await readJson(response);
     shops = (data.shops || []).slice(0, Number(limit));
     if (staticSnapshot && category) shops = shops.filter((shop) => shop.category === category);
     if (!category) syncCategoryOptions(shops);
@@ -267,9 +295,7 @@ gridEl.addEventListener("click", async (event) => {
   detailEl.dataset.open = "1";
   detailEl.innerHTML = `<p>正在读取 CityHeaven 资料...</p>`;
   try {
-    const response = await fetch(`/api/girl?url=${encodeURIComponent(trigger.dataset.url)}`);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || response.statusText);
+    const data = await fetchApiJson(`/api/girl?url=${encodeURIComponent(trigger.dataset.url)}`);
     detailEl.innerHTML = `
       <dl>
         ${data.age ? `<div><dt>年龄</dt><dd>${escapeHtml(data.age)}</dd></div>` : ""}

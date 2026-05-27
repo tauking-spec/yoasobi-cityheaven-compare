@@ -29,6 +29,9 @@ function json(res, status, body) {
   send(res, status, JSON.stringify(body, null, 2), {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, OPTIONS",
+    "access-control-allow-headers": "content-type",
   });
 }
 
@@ -481,6 +484,14 @@ async function handleStatic(req, res) {
 export const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (req.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+      send(res, 204, "", {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-headers": "content-type",
+      });
+      return;
+    }
     if (url.pathname === "/api/health") {
       json(res, 200, { ok: true });
       return;
