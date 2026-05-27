@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yoasobi / CityHeaven 信息统合</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <h1>Yoasobi / CityHeaven 信息统合</h1>
+          <p>以国际站公开信息为主，补充本地站价格摘要、评价数和技师预览。</p>
+        </div>
+        <a class="analysis-link" href="/api/analyze" target="_blank">接口梳理</a>
+      </header>
+
+      <section class="controls" aria-label="filters">
+        <label>
+          地区
+          <select id="pref">
+            <option value="tokyo">Tokyo</option>
+            <option value="kanagawa">Kanagawa</option>
+            <option value="osaka">Osaka</option>
+            <option value="aichi">Aichi</option>
+            <option value="fukuoka">Fukuoka</option>
+          </select>
+        </label>
+        <label>
+          数量
+          <select id="limit">
+            <option value="12">12</option>
+            <option value="24" selected>24</option>
+            <option value="40">40</option>
+            <option value="80">80</option>
+          </select>
+        </label>
+        <label class="search-field">
+          搜索
+          <input id="query" type="search" placeholder="店名、地区、类型" />
+        </label>
+        <button id="refresh" type="button">刷新数据</button>
+      </section>
+
+      <section class="summary" id="summary"></section>
+      <section class="status" id="status">等待加载</section>
+      <section class="grid" id="grid"></section>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
