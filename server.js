@@ -409,6 +409,10 @@ async function handleStatic(req, res) {
 export const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === "/api/health") {
+      json(res, 200, { ok: true });
+      return;
+    }
     if (url.pathname === "/api/shops") {
       await handleShops(req, res);
       return;
