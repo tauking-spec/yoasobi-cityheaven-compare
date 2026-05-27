@@ -269,11 +269,15 @@ input {
 
 .girl {
   min-width: 0;
+}
+
+.girl-link {
+  display: block;
   text-decoration: none;
   color: var(--ink);
 }
 
-.girl img {
+.girl-link img {
   width: 100%;
   aspect-ratio: 1 / 1.15;
   object-fit: cover;
@@ -281,13 +285,108 @@ input {
   background: #eef1f4;
 }
 
-.girl span {
+.girl-link span {
   display: block;
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+
+.girl-detail-trigger,
+.girl-detail-missing {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  margin-top: 5px;
+  padding: 4px 5px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.girl-detail-trigger {
+  border: 1px solid #c6d7d3;
+  background: #f2faf7;
+  color: var(--accent-dark);
+}
+
+.girl-detail-trigger:hover {
+  background: #e4f3ee;
+}
+
+.girl-detail-trigger:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.girl-detail-missing {
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.girl-detail {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.girl-detail:empty {
+  display: none;
+}
+
+.girl-detail dl {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.girl-detail dl div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 4px;
+}
+
+.girl-detail dt {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.girl-detail dd {
+  margin: 0;
+}
+
+.girl-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.girl-tags span {
+  border: 1px solid #e3e8ee;
+  border-radius: 999px;
+  padding: 2px 5px;
+  background: #fafbfc;
+}
+
+.girl-review {
+  margin-top: 6px;
+  border-top: 1px solid #eef1f4;
+  padding-top: 6px;
+}
+
+.girl-review strong,
+.girl-review span {
+  display: block;
+}
+
+.girl-review p,
+.girl-detail p {
+  margin: 4px 0 0;
 }
 
 .links {

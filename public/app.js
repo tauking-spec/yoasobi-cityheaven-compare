@@ -11,9 +11,19 @@ const loadMoreEl = document.querySelector("#load-more");
 let shops = [];
 let visibleCount = 10;
 const PAGE_SIZE = 10;
+const CATEGORY_LABELS = {
+  "erotic massage service parlor": "风俗店铺",
+  "hotel escort service parlor": "酒店派遣",
+  "outcall escort service": "外送服务",
+  "soapland service parlor": "泡泡浴",
+};
 
 function text(value) {
   return value == null || value === "" ? "N/A" : String(value);
+}
+
+function categoryLabel(value = "") {
+  return CATEGORY_LABELS[value] || value || "未分类";
 }
 
 function escapeHtml(value = "") {
@@ -63,10 +73,18 @@ function renderGirls(girls = []) {
         .slice(0, 12)
         .map(
           (girl) => `
-            <a class="girl" href="${escapeHtml(girl.url)}" target="_blank" title="${escapeHtml(girl.name)}">
-              <img src="${escapeHtml(girl.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" />
-              <span>${escapeHtml(girl.name)}</span>
-            </a>
+            <div class="girl">
+              <a class="girl-link" href="${escapeHtml(girl.url)}" target="_blank" title="${escapeHtml(girl.name)}">
+                <img src="${escapeHtml(girl.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                <span>${escapeHtml(girl.name)}</span>
+              </a>
+              ${
+                girl.url?.includes("cityheaven.net")
+                  ? `<button class="girl-detail-trigger" type="button" data-url="${escapeHtml(girl.url)}">资料/评价</button>`
+                  : `<span class="girl-detail-missing">无本地详情</span>`
+              }
+              <div class="girl-detail" aria-live="polite"></div>
+            </div>
           `,
         )
         .join("")}
@@ -83,6 +101,7 @@ function shopMatches(shop, query, category) {
     shop.kana,
     shop.area,
     shop.category,
+    categoryLabel(shop.category),
     shop.directory,
     shop.city?.priceSummary,
   ]
@@ -100,7 +119,7 @@ function syncCategoryOptions(list) {
   const categories = categoriesFor(list);
   categoryEl.innerHTML = [
     `<option value="">全部种类</option>`,
-    ...categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`),
+    ...categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(categoryLabel(category))}</option>`),
   ].join("");
   categoryEl.value = categories.includes(selected) ? selected : "";
 }
@@ -134,7 +153,7 @@ function render() {
             <div class="meta">
               <span class="pill">${escapeHtml(text(shop.localName))}</span>
               <span class="pill">${escapeHtml(text(shop.area))}</span>
-              <span class="pill">${escapeHtml(text(shop.category))}</span>
+              <span class="pill">${escapeHtml(categoryLabel(shop.category))}</span>
               <span class="pill">${escapeHtml(text(shop.openTime))}</span>
             </div>
             <div class="compare">
@@ -150,7 +169,7 @@ function render() {
                 <p class="price-line">${escapeHtml(text(shop.city?.updateTime))}</p>
               </section>
             </div>
-            ${renderGirls(shop.girls?.length ? shop.girls : shop.city?.girls)}
+            ${renderGirls(shop.city?.girls?.length ? shop.city.girls : shop.girls)}
             <div class="links">
               <a href="${escapeHtml(shop.yoasobiUrl)}" target="_blank">国际站</a>
               <a href="${escapeHtml(shop.cityUrl)}" target="_blank">本地站</a>
@@ -230,6 +249,55 @@ categoryEl.addEventListener("change", () => {
 queryEl.addEventListener("input", () => {
   resetVisibleCount();
   render();
+});
+
+gridEl.addEventListener("click", async (event) => {
+  const trigger = event.target.closest(".girl-detail-trigger");
+  if (!trigger) return;
+  const detailEl = trigger.parentElement.querySelector(".girl-detail");
+  const isOpen = detailEl.dataset.open === "1";
+  if (isOpen) {
+    detailEl.dataset.open = "0";
+    detailEl.innerHTML = "";
+    trigger.textContent = "资料/评价";
+    return;
+  }
+  trigger.disabled = true;
+  trigger.textContent = "加载中";
+  detailEl.dataset.open = "1";
+  detailEl.innerHTML = `<p>正在读取 CityHeaven 资料...</p>`;
+  try {
+    const response = await fetch(`/api/girl?url=${encodeURIComponent(trigger.dataset.url)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    detailEl.innerHTML = `
+      <dl>
+        ${data.age ? `<div><dt>年龄</dt><dd>${escapeHtml(data.age)}</dd></div>` : ""}
+        ${data.measurements ? `<div><dt>三围</dt><dd>${escapeHtml(data.measurements)}</dd></div>` : ""}
+        ${data.bloodType ? `<div><dt>血型</dt><dd>${escapeHtml(data.bloodType)}</dd></div>` : ""}
+      </dl>
+      ${
+        data.salesPoints?.length
+          ? `<div class="girl-tags">${data.salesPoints.map((point) => `<span>${escapeHtml(point)}</span>`).join("")}</div>`
+          : ""
+      }
+      ${
+        data.review
+          ? `<div class="girl-review">
+              <strong>${escapeHtml(data.review.title || "最新口コミ")}</strong>
+              ${data.review.date ? `<span>${escapeHtml(data.review.date)}</span>` : ""}
+              ${data.review.body ? `<p>${escapeHtml(data.review.body)}</p>` : ""}
+            </div>`
+          : `<p>暂无 CityHeaven 口コミ。</p>`
+      }
+    `;
+    trigger.textContent = "收起评价";
+  } catch (error) {
+    detailEl.innerHTML = `<p>加载失败：${escapeHtml(error.message)}</p>`;
+    trigger.textContent = "重试";
+  } finally {
+    trigger.disabled = false;
+  }
 });
 
 const observer = new IntersectionObserver(
