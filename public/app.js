@@ -109,10 +109,9 @@ function renderGirls(girls = []) {
               </a>
               ${
                 girl.url?.includes("cityheaven.net")
-                  ? `<button class="girl-detail-trigger" type="button" data-url="${escapeHtml(girl.url)}">资料/评价</button>`
+                  ? `<a class="girl-review-link" href="${escapeHtml(girl.url)}" target="_blank">查看评价</a>`
                   : `<span class="girl-detail-missing">无本地详情</span>`
               }
-              <div class="girl-detail" aria-live="polite"></div>
             </div>
           `,
         )
@@ -277,56 +276,6 @@ categoryEl.addEventListener("change", () => {
 queryEl.addEventListener("input", () => {
   resetVisibleCount();
   render();
-});
-
-gridEl.addEventListener("click", async (event) => {
-  const trigger = event.target.closest(".girl-detail-trigger");
-  if (!trigger) return;
-  const detailEl = trigger.parentElement.querySelector(".girl-detail");
-  const isOpen = detailEl.dataset.open === "1";
-  if (isOpen) {
-    detailEl.dataset.open = "0";
-    detailEl.innerHTML = "";
-    trigger.textContent = "资料/评价";
-    return;
-  }
-  trigger.disabled = true;
-  trigger.textContent = "加载中";
-  detailEl.dataset.open = "1";
-  detailEl.innerHTML = `<p>正在读取 CityHeaven 资料...</p>`;
-  try {
-    const data = await fetchApiJson(`/api/girl?url=${encodeURIComponent(trigger.dataset.url)}`);
-    detailEl.innerHTML = data.blocked
-      ? `<p>${escapeHtml(data.message || "源站限制读取该技师页。")}</p>
-         <a class="girl-detail-source" href="${escapeHtml(data.url || trigger.dataset.url)}" target="_blank">打开 CityHeaven 原页</a>`
-      : `
-      <dl>
-        ${data.age ? `<div><dt>年龄</dt><dd>${escapeHtml(data.age)}</dd></div>` : ""}
-        ${data.measurements ? `<div><dt>三围</dt><dd>${escapeHtml(data.measurements)}</dd></div>` : ""}
-        ${data.bloodType ? `<div><dt>血型</dt><dd>${escapeHtml(data.bloodType)}</dd></div>` : ""}
-      </dl>
-      ${
-        data.salesPoints?.length
-          ? `<div class="girl-tags">${data.salesPoints.map((point) => `<span>${escapeHtml(point)}</span>`).join("")}</div>`
-          : ""
-      }
-      ${
-        data.review
-          ? `<div class="girl-review">
-              <strong>${escapeHtml(data.review.title || "最新口コミ")}</strong>
-              ${data.review.date ? `<span>${escapeHtml(data.review.date)}</span>` : ""}
-              ${data.review.body ? `<p>${escapeHtml(data.review.body)}</p>` : ""}
-            </div>`
-          : `<p>暂无 CityHeaven 口コミ。</p>`
-      }
-    `;
-    trigger.textContent = "收起评价";
-  } catch (error) {
-    detailEl.innerHTML = `<p>加载失败：${escapeHtml(error.message)}</p>`;
-    trigger.textContent = "重试";
-  } finally {
-    trigger.disabled = false;
-  }
 });
 
 const observer = new IntersectionObserver(

@@ -173,49 +173,6 @@ function normalizeShop(shop) {
   };
 }
 
-function parseTableRows(html, tableId) {
-  const table = html.match(new RegExp(`<table[^>]+id="${tableId}"[\\s\\S]*?<\\/table>`, "i"))?.[0] || "";
-  const rows = {};
-  for (const match of table.matchAll(/<tr[\s\S]*?<th[^>]*>([\s\S]*?)<\/th>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi)) {
-    rows[cleanText(match[1])] = cleanText(match[2]);
-  }
-  return rows;
-}
-
-function parseCityGirlPage(html, url) {
-  const profile = parseTableRows(html, "p_data");
-  const salesPoints = [];
-  const salesPointBlock = html.match(/<table[^>]+id="salespoint_data"[\s\S]*?<\/table>/i)?.[0] || "";
-  for (const match of salesPointBlock.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)) {
-    const value = cleanText(match[1]);
-    if (value) salesPoints.push(value);
-  }
-
-  const reviewBlock = html.match(/<div class="girl-prof-review-wrap[\s\S]*?<\/div>\s*<\/div>/i)?.[0] || "";
-  const latestReview = {
-    date: cleanText(reviewBlock.match(/review-widget-top-date">[^<]*<\/span>([\s\S]*?)<\/div>/i)?.[1]),
-    title: cleanText(reviewBlock.match(/review-widget-center-title">\s*([\s\S]*?)<\/span>/i)?.[1]),
-    body: cleanText(reviewBlock.match(/<p class="review-widget-body">\s*([\s\S]*?)<\/p>/i)?.[1]),
-  };
-  const hasReview = Boolean(latestReview.title || latestReview.body);
-
-  return {
-    url,
-    name: profile["名前"] || cleanText(html.match(/<meta itemprop="name" content="([^"]+)"/i)?.[1]),
-    age: profile["年齢"] || "",
-    measurements: profile["3サイズ"] || "",
-    bloodType: profile["血液型"] || "",
-    salesPoints: [...new Set(salesPoints)].slice(0, 12),
-    review: hasReview ? latestReview : null,
-  };
-}
-
-function cityGirlReferer(url) {
-  const girlUrl = new URL(url);
-  const shopPath = girlUrl.pathname.replace(/girlid-\d+\/?$/i, "");
-  return new URL(shopPath || "/", girlUrl.origin).toString();
-}
-
 function parseYoasobiPriceTable(html) {
   const box = html.match(/<div class="system_box_new"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/i)?.[0] || "";
   const rows = [];
@@ -374,40 +331,6 @@ async function handleShops(req, res) {
   json(res, 200, await getAggregatedShops({ pref, limit, category, enrich }));
 }
 
-async function handleGirl(req, res) {
-  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
-  const rawUrl = requestUrl.searchParams.get("url") || "";
-  let girlUrl;
-  try {
-    girlUrl = new URL(rawUrl);
-  } catch {
-    json(res, 400, { error: "Invalid CityHeaven girl URL" });
-    return;
-  }
-  if (!["www.cityheaven.net", "cityheaven.net"].includes(girlUrl.hostname) || !/\/girlid-\d+\/?/.test(girlUrl.pathname)) {
-    json(res, 400, { error: "Only CityHeaven girl profile URLs are supported" });
-    return;
-  }
-  try {
-    const html = await fetchText(girlUrl.toString(), {
-      headers: {
-        referer: cityGirlReferer(girlUrl.toString()),
-      },
-    });
-    json(res, 200, parseCityGirlPage(html, girlUrl.toString()));
-  } catch (error) {
-    if (error.status === 403) {
-      json(res, 200, {
-        url: girlUrl.toString(),
-        blocked: true,
-        message: "CityHeaven 限制了服务器读取该技师页，可打开原页面查看资料和口コミ。",
-      });
-      return;
-    }
-    throw error;
-  }
-}
-
 export async function getAggregatedShops({ pref = "tokyo", limit = 24, category = "", enrich = true } = {}) {
   const cappedLimit = Math.min(Number(limit || 24), 80);
   const shops = await loadYoasobiShops(pref, cappedLimit, category);
@@ -525,10 +448,6 @@ export const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/api/shops") {
       await handleShops(req, res);
-      return;
-    }
-    if (url.pathname === "/api/girl") {
-      await handleGirl(req, res);
       return;
     }
     if (url.pathname === "/api/analyze") {
