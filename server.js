@@ -247,11 +247,15 @@ function parseCityListEntry(html, shop) {
   return { priceSummary, reviewCount, updateTime, catchText, girls };
 }
 
-async function loadYoasobiShops(pref, limit) {
+async function loadYoasobiShops(pref, limit, category = "") {
   const url = `https://yoasobi-heaven.com/en/${pref}/shop-list/`;
   const html = await fetchText(url);
   const rawShops = extractConstArray(html, "shopData");
-  return rawShops.slice(0, limit).map((shop) => ({ rawShop: shop, ...normalizeShop(shop) }));
+  const normalizedCategory = category.trim().toLowerCase();
+  const filteredShops = normalizedCategory
+    ? rawShops.filter((shop) => String(shop.business_large_name || "").toLowerCase() === normalizedCategory)
+    : rawShops;
+  return filteredShops.slice(0, limit).map((shop) => ({ rawShop: shop, ...normalizeShop(shop) }));
 }
 
 async function enrichShop(shop) {
@@ -302,14 +306,15 @@ async function handleShops(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pref = url.searchParams.get("pref") || "tokyo";
   const limit = Math.min(Number(url.searchParams.get("limit") || 24), 80);
+  const category = url.searchParams.get("category") || "";
   const enrich = url.searchParams.get("enrich") !== "0";
 
-  json(res, 200, await getAggregatedShops({ pref, limit, enrich }));
+  json(res, 200, await getAggregatedShops({ pref, limit, category, enrich }));
 }
 
-export async function getAggregatedShops({ pref = "tokyo", limit = 24, enrich = true } = {}) {
+export async function getAggregatedShops({ pref = "tokyo", limit = 24, category = "", enrich = true } = {}) {
   const cappedLimit = Math.min(Number(limit || 24), 80);
-  const shops = await loadYoasobiShops(pref, cappedLimit);
+  const shops = await loadYoasobiShops(pref, cappedLimit, category);
   const data = enrich ? await Promise.all(shops.map(enrichShop)) : shops;
   return {
     source: {
@@ -319,6 +324,7 @@ export async function getAggregatedShops({ pref = "tokyo", limit = 24, enrich = 
     },
     pref,
     prefLabel: PREF_LABELS[pref] || pref,
+    category,
     count: data.length,
     shops: data,
   };

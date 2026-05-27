@@ -36,6 +36,12 @@
             <option value="80">80</option>
           </select>
         </label>
+        <label>
+          种类
+          <select id="category">
+            <option value="">全部种类</option>
+          </select>
+        </label>
         <label class="search-field">
           搜索
           <input id="query" type="search" placeholder="店名、地区、类型" />
@@ -46,6 +52,7 @@
       <section class="summary" id="summary"></section>
       <section class="status" id="status">等待加载</section>
       <section class="grid" id="grid"></section>
+      <section class="load-more" id="load-more" aria-live="polite"></section>
     </main>
     <script src="/app.js" type="module"></script>
   </body>

@@ -1,12 +1,16 @@
 const prefEl = document.querySelector("#pref");
 const limitEl = document.querySelector("#limit");
+const categoryEl = document.querySelector("#category");
 const queryEl = document.querySelector("#query");
 const refreshEl = document.querySelector("#refresh");
 const gridEl = document.querySelector("#grid");
 const statusEl = document.querySelector("#status");
 const summaryEl = document.querySelector("#summary");
+const loadMoreEl = document.querySelector("#load-more");
 
 let shops = [];
+let visibleCount = 10;
+const PAGE_SIZE = 10;
 
 function text(value) {
   return value == null || value === "" ? "N/A" : String(value);
@@ -20,12 +24,12 @@ function escapeHtml(value = "") {
     .replaceAll('"', "&quot;");
 }
 
-function renderSummary(list) {
+function renderSummary(list, visibleTotal) {
   const withCity = list.filter((shop) => shop.city?.reviewCount || shop.city?.priceSummary).length;
   const yoasobiReviews = list.reduce((sum, shop) => sum + Number(shop.yoasobiReviewCount || 0), 0);
   const cityReviews = list.reduce((sum, shop) => sum + Number(shop.city?.reviewCount || 0), 0);
   summaryEl.innerHTML = `
-    <div class="metric"><span>展示店铺</span><strong>${list.length}</strong></div>
+    <div class="metric"><span>已展示 / 符合条件</span><strong>${visibleTotal} / ${list.length}</strong></div>
     <div class="metric"><span>匹配本地信息</span><strong>${withCity}</strong></div>
     <div class="metric"><span>国际站评价</span><strong>${yoasobiReviews.toLocaleString()}</strong></div>
     <div class="metric"><span>本地站评价</span><strong>${cityReviews.toLocaleString()}</strong></div>
@@ -70,7 +74,8 @@ function renderGirls(girls = []) {
   `;
 }
 
-function shopMatches(shop, query) {
+function shopMatches(shop, query, category) {
+  if (category && shop.category !== category) return false;
   if (!query) return true;
   const haystack = [
     shop.name,
@@ -86,11 +91,31 @@ function shopMatches(shop, query) {
   return haystack.includes(query.toLowerCase());
 }
 
+function categoriesFor(list) {
+  return [...new Set(list.map((shop) => shop.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function syncCategoryOptions(list) {
+  const selected = categoryEl.value;
+  const categories = categoriesFor(list);
+  categoryEl.innerHTML = [
+    `<option value="">全部种类</option>`,
+    ...categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`),
+  ].join("");
+  categoryEl.value = categories.includes(selected) ? selected : "";
+}
+
+function resetVisibleCount() {
+  visibleCount = PAGE_SIZE;
+}
+
 function render() {
   const query = queryEl.value.trim();
-  const filtered = shops.filter((shop) => shopMatches(shop, query));
-  renderSummary(filtered);
-  gridEl.innerHTML = filtered
+  const category = categoryEl.value;
+  const filtered = shops.filter((shop) => shopMatches(shop, query, category));
+  const visible = filtered.slice(0, visibleCount);
+  renderSummary(filtered, visible.length);
+  gridEl.innerHTML = visible
     .map(
       (shop) => `
         <article class="shop-card">
@@ -139,19 +164,38 @@ function render() {
 
   if (!filtered.length) {
     gridEl.innerHTML = "";
+    loadMoreEl.textContent = "";
     statusEl.textContent = "没有符合筛选条件的数据";
+    return;
   }
+  loadMoreEl.textContent =
+    visible.length < filtered.length
+      ? `继续下拉加载更多，还有 ${filtered.length - visible.length} 家`
+      : "已显示全部符合条件的店铺";
+}
+
+function loadMore() {
+  const query = queryEl.value.trim();
+  const category = categoryEl.value;
+  const filtered = shops.filter((shop) => shopMatches(shop, query, category));
+  if (visibleCount >= filtered.length) return;
+  visibleCount += PAGE_SIZE;
+  render();
 }
 
 async function load() {
   const pref = prefEl.value;
   const limit = limitEl.value;
+  const category = categoryEl.value;
   statusEl.textContent = `正在抓取 ${pref}，数量 ${limit}。首次加载会慢一些。`;
   gridEl.innerHTML = "";
+  loadMoreEl.textContent = "";
   summaryEl.innerHTML = "";
   refreshEl.disabled = true;
   try {
-    let response = await fetch(`/api/shops?pref=${encodeURIComponent(pref)}&limit=${encodeURIComponent(limit)}`);
+    const params = new URLSearchParams({ pref, limit });
+    if (category) params.set("category", category);
+    let response = await fetch(`/api/shops?${params.toString()}`);
     let staticSnapshot = false;
     if (!response.ok && response.status === 404) {
       staticSnapshot = true;
@@ -160,6 +204,9 @@ async function load() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || response.statusText);
     shops = (data.shops || []).slice(0, Number(limit));
+    if (staticSnapshot && category) shops = shops.filter((shop) => shop.category === category);
+    if (!category) syncCategoryOptions(shops);
+    resetVisibleCount();
     const mode = staticSnapshot ? "GitHub Pages 静态快照" : "本地实时聚合";
     statusEl.textContent = `${mode}。数据时间：${new Date(data.source.fetchedAt).toLocaleString()}。来源：${data.source.primary}`;
     render();
@@ -171,8 +218,26 @@ async function load() {
 }
 
 refreshEl.addEventListener("click", load);
-prefEl.addEventListener("change", load);
+prefEl.addEventListener("change", () => {
+  categoryEl.value = "";
+  load();
+});
 limitEl.addEventListener("change", load);
-queryEl.addEventListener("input", render);
+categoryEl.addEventListener("change", () => {
+  resetVisibleCount();
+  load();
+});
+queryEl.addEventListener("input", () => {
+  resetVisibleCount();
+  render();
+});
+
+const observer = new IntersectionObserver(
+  (entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) loadMore();
+  },
+  { rootMargin: "240px 0px" },
+);
+observer.observe(loadMoreEl);
 
 load();
