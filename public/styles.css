@@ -389,6 +389,13 @@ input {
   margin: 4px 0 0;
 }
 
+.girl-detail-source {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
 .links {
   display: flex;
   gap: 10px;

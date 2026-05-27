@@ -64,7 +64,7 @@ function absolutize(url, base) {
   return new URL(url, base).toString();
 }
 
-async function fetchText(url) {
+async function fetchText(url, options = {}) {
   const cached = cache.get(url);
   if (cached && Date.now() - cached.time < TTL_MS) return cached.text;
 
@@ -74,8 +74,10 @@ async function fetchText(url) {
     try {
       response = await fetch(url, {
         headers: {
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           "user-agent": USER_AGENT,
           "accept-language": "en-US,en;q=0.9,ja;q=0.8,zh-CN;q=0.7",
+          ...(options.headers || {}),
         },
       });
       break;
@@ -86,7 +88,10 @@ async function fetchText(url) {
   }
   if (!response) throw lastError;
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText} while fetching ${url}`);
+    const error = new Error(`${response.status} ${response.statusText} while fetching ${url}`);
+    error.status = response.status;
+    error.statusText = response.statusText;
+    throw error;
   }
   const text = await response.text();
   cache.set(url, { time: Date.now(), text });
@@ -203,6 +208,12 @@ function parseCityGirlPage(html, url) {
     salesPoints: [...new Set(salesPoints)].slice(0, 12),
     review: hasReview ? latestReview : null,
   };
+}
+
+function cityGirlReferer(url) {
+  const girlUrl = new URL(url);
+  const shopPath = girlUrl.pathname.replace(/girlid-\d+\/?$/i, "");
+  return new URL(shopPath || "/", girlUrl.origin).toString();
 }
 
 function parseYoasobiPriceTable(html) {
@@ -377,8 +388,24 @@ async function handleGirl(req, res) {
     json(res, 400, { error: "Only CityHeaven girl profile URLs are supported" });
     return;
   }
-  const html = await fetchText(girlUrl.toString());
-  json(res, 200, parseCityGirlPage(html, girlUrl.toString()));
+  try {
+    const html = await fetchText(girlUrl.toString(), {
+      headers: {
+        referer: cityGirlReferer(girlUrl.toString()),
+      },
+    });
+    json(res, 200, parseCityGirlPage(html, girlUrl.toString()));
+  } catch (error) {
+    if (error.status === 403) {
+      json(res, 200, {
+        url: girlUrl.toString(),
+        blocked: true,
+        message: "CityHeaven 限制了服务器读取该技师页，可打开原页面查看资料和口コミ。",
+      });
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function getAggregatedShops({ pref = "tokyo", limit = 24, category = "", enrich = true } = {}) {

@@ -296,7 +296,10 @@ gridEl.addEventListener("click", async (event) => {
   detailEl.innerHTML = `<p>正在读取 CityHeaven 资料...</p>`;
   try {
     const data = await fetchApiJson(`/api/girl?url=${encodeURIComponent(trigger.dataset.url)}`);
-    detailEl.innerHTML = `
+    detailEl.innerHTML = data.blocked
+      ? `<p>${escapeHtml(data.message || "源站限制读取该技师页。")}</p>
+         <a class="girl-detail-source" href="${escapeHtml(data.url || trigger.dataset.url)}" target="_blank">打开 CityHeaven 原页</a>`
+      : `
       <dl>
         ${data.age ? `<div><dt>年龄</dt><dd>${escapeHtml(data.age)}</dd></div>` : ""}
         ${data.measurements ? `<div><dt>三围</dt><dd>${escapeHtml(data.measurements)}</dd></div>` : ""}
