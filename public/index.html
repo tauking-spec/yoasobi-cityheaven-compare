@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Yoasobi / CityHeaven 信息统合</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -25,6 +26,12 @@
             <option value="osaka">Osaka</option>
             <option value="aichi">Aichi</option>
             <option value="fukuoka">Fukuoka</option>
+          </select>
+        </label>
+        <label>
+          二级地区
+          <select id="area">
+            <option value="">全部二级地区</option>
           </select>
         </label>
         <label>
@@ -51,9 +58,17 @@
 
       <section class="summary" id="summary"></section>
       <section class="status" id="status">等待加载</section>
+      <section class="map-panel" aria-label="shop map">
+        <div class="map-header">
+          <strong>地图</strong>
+          <span id="map-status">等待数据</span>
+        </div>
+        <div id="map"></div>
+      </section>
       <section class="grid" id="grid"></section>
       <section class="load-more" id="load-more" aria-live="polite"></section>
     </main>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

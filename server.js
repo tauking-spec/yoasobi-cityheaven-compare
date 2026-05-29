@@ -20,6 +20,59 @@ const PREF_LABELS = {
   fukuoka: "Fukuoka",
 };
 
+const PREF_COORDS = {
+  tokyo: { lat: 35.6812, lng: 139.7671, zoom: 11 },
+  kanagawa: { lat: 35.4478, lng: 139.6425, zoom: 10 },
+  osaka: { lat: 34.6937, lng: 135.5023, zoom: 11 },
+  aichi: { lat: 35.1815, lng: 136.9066, zoom: 10 },
+  fukuoka: { lat: 33.5902, lng: 130.4017, zoom: 10 },
+};
+
+const AREA_COORDS = {
+  tokyo: {
+    YA1301: { lat: 35.6951, lng: 139.7036 },
+    YA1302: { lat: 35.7004, lng: 139.8134 },
+    YA1303: { lat: 35.7148, lng: 139.7832 },
+    YA1304: { lat: 35.7247, lng: 139.7966 },
+    YA1305: { lat: 35.6655, lng: 139.7038 },
+    YA1306: { lat: 35.6747, lng: 139.7721 },
+    YA1308: { lat: 35.7015, lng: 139.7670 },
+    YA1309: { lat: 35.7295, lng: 139.7109 },
+    YA1310: { lat: 35.6329, lng: 139.7400 },
+    YA1311: { lat: 35.6605, lng: 139.7292 },
+    YA1312: { lat: 35.5613, lng: 139.7160 },
+    YA1314: { lat: 35.7041, lng: 139.4137 },
+    YA1316: { lat: 35.6722, lng: 139.5448 },
+  },
+  kanagawa: {
+    YA1401: { lat: 35.4658, lng: 139.6223 },
+    YA1402: { lat: 35.5075, lng: 139.6175 },
+    YA1403: { lat: 35.5308, lng: 139.7030 },
+    YA1404: { lat: 35.2380, lng: 139.1535 },
+    YA1405: { lat: 35.5292, lng: 139.4384 },
+    YA1406: { lat: 35.2813, lng: 139.6722 },
+    YA1407: { lat: 35.3192, lng: 139.5503 },
+    YA1408: { lat: 35.4437, lng: 139.3788 },
+  },
+  osaka: {
+    YA2701: { lat: 34.7054, lng: 135.4983 },
+    YA2702: { lat: 34.6687, lng: 135.5010 },
+    YA2703: { lat: 34.5733, lng: 135.4829 },
+  },
+  aichi: {
+    YA2301: { lat: 35.1709, lng: 136.8815 },
+    YA2302: { lat: 35.3039, lng: 136.8031 },
+    YA2303: { lat: 34.9685, lng: 137.0609 },
+    YA2304: { lat: 34.7628, lng: 137.3815 },
+  },
+  fukuoka: {
+    YA4001: { lat: 33.5902, lng: 130.4017 },
+    YA4002: { lat: 33.3193, lng: 130.5084 },
+    YA4003: { lat: 33.8834, lng: 130.8751 },
+    YA4004: { lat: 33.9578, lng: 130.9415 },
+  },
+};
+
 function send(res, status, body, headers = {}) {
   res.writeHead(status, headers);
   res.end(body);
@@ -70,6 +123,61 @@ function uniqueValues(values) {
 
 function linkTexts(html = "") {
   return uniqueValues([...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].map((match) => match[1]));
+}
+
+function hashString(value = "") {
+  let hash = 0;
+  for (const char of String(value)) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+function areaCoords(pref, areaId) {
+  return AREA_COORDS[pref]?.[areaId] || PREF_COORDS[pref] || PREF_COORDS.tokyo;
+}
+
+function shopLocation(shop) {
+  const base = areaCoords(shop.pref_name, shop.first_area_id);
+  const hash = hashString(shop.c_commu_id || shop.shop_directry_name || shop.name);
+  const angle = ((hash % 360) * Math.PI) / 180;
+  const radius = 0.0012 + ((hash % 9) * 0.00022);
+  const lngRadius = radius / Math.max(Math.cos((base.lat * Math.PI) / 180), 0.5);
+  return {
+    lat: Number((base.lat + Math.sin(angle) * radius).toFixed(6)),
+    lng: Number((base.lng + Math.cos(angle) * lngRadius).toFixed(6)),
+    areaLat: base.lat,
+    areaLng: base.lng,
+    precision: "area",
+  };
+}
+
+function buildCategories(rawShops) {
+  const counts = new Map();
+  for (const shop of rawShops) {
+    const value = shop.business_large_name;
+    if (!value) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, label: value, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function buildAreas(rawShops, pref) {
+  const areas = new Map();
+  for (const shop of rawShops) {
+    if (!shop.first_area_id || !shop.first_area_name) continue;
+    const current = areas.get(shop.first_area_id) || {
+      value: shop.first_area_id,
+      label: shop.first_area_name,
+      count: 0,
+      location: areaCoords(pref, shop.first_area_id),
+    };
+    current.count += 1;
+    areas.set(shop.first_area_id, current);
+  }
+  return [...areas.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 async function fetchText(url, options = {}) {
@@ -157,6 +265,8 @@ function normalizeShop(shop) {
     kana: shop.shop_kana_romaji || shop.shop_kana,
     directory: shop.shop_directry_name,
     pref: shop.pref_name,
+    areaId: shop.first_area_id,
+    secondAreaId: shop.second_area_id,
     area: shop.first_area_name,
     category: shop.business_large_name,
     openTime: shop.shop_opentime,
@@ -172,6 +282,7 @@ function normalizeShop(shop) {
     cityAreaListUrl: cityAreaListUrlForShop(shop),
     citySearchUrl: `https://www.cityheaven.net/${shop.pref_name}/shop-list/?shopname_search=${encodeURIComponent(shop.name)}`,
     girlsApiUrl: `https://yoasobi-heaven.com/api/${shop.c_commu_id}/girls-list/?member_disp_count=${shop.member_disp_count || 10}&display_member_count=${shop.display_member_count || 5}&travelers_lank=${shop.travelers_lank || ""}`,
+    location: shopLocation(shop),
     raw: {
       heavenFirstAreaId: shop.heaven_first_area_id,
       heavenSecondAreaId: shop.heaven_second_area_id,
@@ -307,15 +418,25 @@ function parseCityListEntry(html, shop) {
   return { priceSummary, reviewCount, updateTime, catchText, localInfo, girls };
 }
 
-async function loadYoasobiShops(pref, limit, category = "") {
+async function loadYoasobiShops(pref, limit, category = "", area = "") {
   const url = `https://yoasobi-heaven.com/en/${pref}/shop-list/`;
   const html = await fetchText(url);
   const rawShops = extractConstArray(html, "shopData");
+  const categories = buildCategories(rawShops);
   const normalizedCategory = category.trim().toLowerCase();
-  const filteredShops = normalizedCategory
+  const categoryFilteredShops = normalizedCategory
     ? rawShops.filter((shop) => String(shop.business_large_name || "").toLowerCase() === normalizedCategory)
     : rawShops;
-  return filteredShops.slice(0, limit).map((shop) => ({ rawShop: shop, ...normalizeShop(shop) }));
+  const areas = buildAreas(categoryFilteredShops, pref);
+  const filteredShops = area
+    ? categoryFilteredShops.filter((shop) => shop.first_area_id === area || shop.first_area_name === area)
+    : categoryFilteredShops;
+  return {
+    shops: filteredShops.slice(0, limit).map((shop) => ({ rawShop: shop, ...normalizeShop(shop) })),
+    categories,
+    areas,
+    total: filteredShops.length,
+  };
 }
 
 async function enrichShop(shop) {
@@ -373,15 +494,20 @@ async function handleShops(req, res) {
   const pref = url.searchParams.get("pref") || "tokyo";
   const limit = Math.min(Number(url.searchParams.get("limit") || 24), 80);
   const category = url.searchParams.get("category") || "";
+  const area = url.searchParams.get("area") || "";
   const enrich = url.searchParams.get("enrich") !== "0";
 
-  json(res, 200, await getAggregatedShops({ pref, limit, category, enrich }));
+  json(res, 200, await getAggregatedShops({ pref, limit, category, area, enrich }));
 }
 
-export async function getAggregatedShops({ pref = "tokyo", limit = 24, category = "", enrich = true } = {}) {
+export async function getAggregatedShops({ pref = "tokyo", limit = 24, category = "", area = "", enrich = true } = {}) {
   const cappedLimit = Math.min(Number(limit || 24), 80);
-  const shops = await loadYoasobiShops(pref, cappedLimit, category);
-  const data = enrich ? await Promise.all(shops.map(enrichShop)) : shops;
+  const yoasobi = await loadYoasobiShops(pref, cappedLimit, category, area);
+  const data = enrich ? await Promise.all(yoasobi.shops.map(enrichShop)) : yoasobi.shops;
+  const selectedArea = yoasobi.areas.find((item) => item.value === area || item.label === area);
+  const mapCenter = selectedArea
+    ? { ...selectedArea.location, zoom: 13 }
+    : PREF_COORDS[pref] || PREF_COORDS.tokyo;
   return {
     source: {
       primary: `https://yoasobi-heaven.com/en/${pref}/shop-list/`,
@@ -391,7 +517,12 @@ export async function getAggregatedShops({ pref = "tokyo", limit = 24, category 
     pref,
     prefLabel: PREF_LABELS[pref] || pref,
     category,
+    area,
     count: data.length,
+    total: yoasobi.total,
+    categories: yoasobi.categories,
+    areas: yoasobi.areas,
+    map: mapCenter,
     shops: data,
   };
 }
